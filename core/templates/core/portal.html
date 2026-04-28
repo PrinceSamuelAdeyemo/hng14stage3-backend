@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Insighta Labs+ Portal</title>
+	<style>
+		body { font-family: system-ui, sans-serif; margin: 0; color: #17202a; background: #f7f9fb; }
+		header, main { max-width: 1120px; margin: 0 auto; padding: 20px; }
+		header { display: flex; align-items: center; justify-content: space-between; }
+		form { display: flex; gap: 8px; margin: 12px 0 20px; }
+		input { flex: 1; padding: 10px; border: 1px solid #ccd4dd; border-radius: 6px; }
+		button, a.button { padding: 10px 12px; border: 0; border-radius: 6px; background: #17202a; color: white; text-decoration: none; }
+		table { width: 100%; border-collapse: collapse; background: white; }
+		th, td { padding: 10px; border-bottom: 1px solid #e6ebf0; text-align: left; font-size: 14px; }
+		th { background: #eef3f7; }
+	</style>
+</head>
+<body>
+	<header>
+		<div>
+			<h1>Insighta Labs+</h1>
+			<p>{{ role }}</p>
+		</div>
+		<form method="post" action="/portal/logout/">
+			{% csrf_token %}
+			<button type="submit">Logout</button>
+		</form>
+	</header>
+	<main>
+		<form method="get" action="/portal/">
+			<input name="q" value="{{ query }}" placeholder="Search profiles, e.g. young males from nigeria">
+			<button type="submit">Search</button>
+			<a class="button" href="/api/v1/profiles/export">Export CSV</a>
+		</form>
+		<table>
+			<thead>
+				<tr>
+					<th>Name</th>
+					<th>Gender</th>
+					<th>Age</th>
+					<th>Group</th>
+					<th>Country</th>
+					<th>Created</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for profile in profiles %}
+				<tr>
+					<td>{{ profile.name }}</td>
+					<td>{{ profile.gender }}</td>
+					<td>{{ profile.age }}</td>
+					<td>{{ profile.age_group }}</td>
+					<td>{{ profile.country_name }}</td>
+					<td>{{ profile.created_at }}</td>
+				</tr>
+				{% empty %}
+				<tr><td colspan="6">No profiles found.</td></tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</main>
+</body>
+</html>

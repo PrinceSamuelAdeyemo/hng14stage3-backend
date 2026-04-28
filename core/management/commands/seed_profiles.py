@@ -1,13 +1,11 @@
 from django.core.management.base import BaseCommand
 from core.models import Profile
 import json
-import uuid
 from django.utils import timezone
-from pathlib import Path
+from uuid6 import uuid7
 
 def generate_uuid():
-	"""Generate a UUID"""
-	return uuid.uuid7
+	return uuid7()
 class Command(BaseCommand):
     help = 'Seed the database with profiles from a JSON file.'
 
@@ -36,7 +34,7 @@ class Command(BaseCommand):
             obj, created_flag = Profile.objects.get_or_create(
                 name=p['name'],
                 defaults={
-                    'id': generate_uuid,
+                    'id': generate_uuid(),
                     'gender': p['gender'],
                     'gender_probability': p['gender_probability'],
                     'age': p['age'],
