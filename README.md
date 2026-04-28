@@ -1,103 +1,148 @@
-# Insighta Labs Demographic Intelligence Backend
+# Insighta Labs+ Profile Intelligence Backend
 
-## Overview
-This backend provides advanced demographic profile querying for Insighta Labs clients. It supports:
-- Filtering, sorting, and pagination of profiles
-- Rule-based natural language search
-- Fast, combinable queries for marketing, product, and analytics teams
+Insighta Labs+ is a Django/DRF profile intelligence platform. Stage 2 profile filtering, sorting, pagination, and natural language search remain available, and Stage 3 adds GitHub OAuth, short-lived tokens, role enforcement, CSV export, a CLI, a browser portal, rate limiting, and request logging.
+
+## System Architecture
+
+- `config/urls.py` exposes legacy `/api/...` routes and versioned `/api/v1/...` routes.
+- `core/views.py` contains the profile API, GitHub OAuth endpoints, token refresh/logout endpoints, CSV export, and web portal views.
+- `core/auth_utils.py` signs access tokens, rotates refresh tokens, performs GitHub OAuth code exchange with PKCE, and centralizes role checks.
+- `core/models.py` stores profiles, GitHub user roles, OAuth state, hashed refresh tokens, and request logs.
+- `core/middleware.py` applies API rate limiting and logs API requests.
+- `insighta_cli.py` provides the globally installable CLI entrypoint.
+
+## Authentication Flow
+
+GitHub OAuth uses PKCE for both browser and CLI clients.
+
+Browser:
+
+1. Visit `/portal/`.
+2. Click GitHub sign-in, which starts `/api/v1/auth/github/start?client=web`.
+3. The backend creates an OAuth state, code verifier, and code challenge, then redirects to GitHub.
+4. GitHub redirects to `/api/v1/auth/github/callback`.
+5. The backend exchanges the code, creates or updates the Django user, assigns a role, starts a Django session, and sets an HTTP-only refresh cookie.
+
+CLI:
+
+1. `insighta login --api http://localhost:8000/api/v1`
+2. The CLI starts `/api/v1/auth/github/start?client=cli&redirect_uri=http://127.0.0.1:<port>/callback`.
+3. The CLI opens the GitHub authorization URL and listens locally for the callback.
+4. The CLI sends the returned code, state, and PKCE verifier to `/api/v1/auth/github/callback`.
+5. The backend returns access and refresh tokens, and the CLI stores them at `~/.insighta/credentials.json`.
+
+Required environment variables:
+
+```env
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+GITHUB_CALLBACK_URL=http://localhost:8000/api/v1/auth/github/callback
+INSIGHTA_ADMIN_GITHUB_LOGINS=github_admin_login,another_admin
+INSIGHTA_ACCESS_TOKEN_SECONDS=900
+INSIGHTA_REFRESH_TOKEN_DAYS=7
+```
+
+## Token Handling Approach
+
+- Access tokens are signed Django tokens with a short default lifetime of 15 minutes.
+- Refresh tokens are random secrets stored only as SHA-256 hashes in the database.
+- Refresh tokens rotate on every `/api/v1/auth/refresh` call.
+- Browser refresh tokens are stored in the `insighta_refresh` HTTP-only cookie.
+- CLI credentials are stored at `~/.insighta/credentials.json`.
+- Logout revokes the active refresh token and clears browser credentials.
+
+## Role Enforcement Logic
+
+Users receive a role during GitHub login:
+
+- GitHub logins listed in `INSIGHTA_ADMIN_GITHUB_LOGINS` become `admin`.
+- Everyone else becomes `analyst`.
+
+Profile list, search, export, and `/me` require authentication and either `admin` or `analyst`. Admin-only endpoints can use the shared `IsAdmin` permission in `core/auth_utils.py`.
 
 ## API Endpoints
 
-### 1. Get All Profiles
-**GET** `/api/profiles`
+Versioned Stage 3 routes:
 
-**Query Parameters:**
-- `gender`: `male` or `female`
-- `age_group`: `child`, `teenager`, `adult`, `senior`
-- `country_id`: ISO2 code (e.g., `NG`, `BJ`)
-- `min_age`, `max_age`: integer
-- `min_gender_probability`, `min_country_probability`: float
-- `sort_by`: `age`, `created_at`, `gender_probability`
-- `order`: `asc` or `desc`
-- `page`: integer (default: 1)
-- `limit`: integer (default: 10, max: 50)
+- `GET /api/v1/auth/github/start?client=web|cli`
+- `GET /api/v1/auth/github/callback`
+- `POST /api/v1/auth/refresh`
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/me`
+- `GET /api/v1/profiles`
+- `GET /api/v1/profiles/search?q=young males from nigeria`
+- `GET /api/v1/profiles/export`
 
-**Response:**
-```
+Legacy routes remain available under `/api/...` with the old pagination shape.
+
+### Updated v1 Pagination Shape
+
+```json
 {
   "status": "success",
-  "page": 1,
-  "limit": 10,
-  "total": 2026,
-  "data": [ ... ]
+  "data": [],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 2026,
+    "total_pages": 203,
+    "has_next": true,
+    "has_previous": false
+  }
 }
 ```
 
-### 2. Natural Language Query
-**GET** `/api/profiles/search?q=...`
+## CLI Usage
 
-**Examples:**
-- `q=young males from nigeria` → `gender=male`, `min_age=16`, `max_age=24`, `country_id=NG`
-- `q=females above 30` → `gender=female`, `min_age=30`
-- `q=people from angola` → `country_id=AO`
-- `q=adult males from kenya` → `gender=male`, `age_group=adult`, `country_id=KE`
-- `q=male and female teenagers above 17` → `age_group=teenager`, `min_age=17`
+Install locally:
 
-**Response:**
-```
-{
-  "status": "success",
-  "page": 1,
-  "limit": 10,
-  "total": 2026,
-  "data": [ ... ]
-}
+```bash
+pip install -e .
 ```
 
-**Error Response:**
+Commands:
+
+```bash
+insighta login --api http://localhost:8000/api/v1
+insighta me
+insighta profiles --gender female --min_age 25 --sort_by age --order asc
+insighta search "young males from nigeria"
+insighta export --output profiles.csv
+insighta logout
 ```
-{
-  "status": "error",
-  "message": "<error message>"
-}
+
+The CLI stores credentials at `~/.insighta/credentials.json` and refreshes access tokens when needed.
+
+## Web Portal
+
+Open:
+
+```text
+http://localhost:8000/portal/
 ```
+
+The portal uses Django sessions, CSRF-protected POST forms, and an HTTP-only refresh cookie. Users can search profiles, view results, export CSV, and log out.
 
 ## Natural Language Parsing Approach
-- **Rule-based only** (no AI/LLM)
-- Recognizes keywords: `male`, `female`, `child`, `teenager`, `adult`, `senior`, `young`, `above`, `over`, `below`, `under`, `from <country>`
-- Maps common country names to ISO2 codes (NG, AO, KE, BJ)
-- "young" → ages 16–24
-- "above 30"/"over 30" → min_age=30
-- "below 20"/"under 20" → max_age=20
-- "teenagers above 17" → age_group=teenager, min_age=17
-- All filters are combinable
-- If the query can't be interpreted, returns `{ "status": "error", "message": "Unable to interpret query" }`
 
-## Limitations
-- Only exact keywords and simple patterns are supported
-- No fuzzy matching, synonyms, or advanced NLP
-- Only a few countries are mapped by name; others use the country name as-is
-- No support for ranges (e.g., "ages 20 to 30") or logical operators ("or", "not")
-- Misspellings and ambiguous queries are not handled
+The parser is rule-based and does not use an LLM. It recognizes:
 
-## Seeding the Database
-- Place your profiles JSON file at `data/profiles.json`
-- Run: `python manage.py seed_profiles`
-- Re-running the seed is safe (no duplicates)
+- Gender: `male`, `males`, `female`, `females`
+- Age groups: `child`, `teenager`, `adult`, `senior`
+- Young users: maps `young` to ages 16 through 24
+- Age comparisons: `above 30`, `over 30`, `below 20`, `under 20`
+- Country phrases: `from nigeria`, `from angola`, `from kenya`, `from benin`
 
-## CORS
-- All API responses include `Access-Control-Allow-Origin: *`
+Filters are combined into Django `Q` objects. If a query has no interpretable rule, the API returns an error.
 
-## Timestamps & IDs
-- All timestamps are UTC ISO 8601
-- All IDs are UUID v7
+## Rate Limiting And Logging
 
-## Error Handling
-- 400: Missing/empty parameter or page overlap
-- 422: Invalid parameter type
-- 404: Not found
-- 500/502: Server error
+`RateLimitMiddleware` limits API traffic to 120 requests per IP per minute. `RequestLoggingMiddleware` records method, path, status code, user, IP address, duration, and timestamp in `RequestLog`.
 
----
+## Seeding
 
-For more, see the code and comments in `core/views.py` and `core/management/commands/seed_profiles.py`.
+Place profile data at `data/seed_profiles.json`, then run:
+
+```bash
+python manage.py seed_profiles
+```
