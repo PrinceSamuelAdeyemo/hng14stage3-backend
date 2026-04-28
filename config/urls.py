@@ -16,9 +16,12 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from core.views import PortalLogoutView, PortalView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('portal/', PortalView.as_view(), name='portal-root'),
+    path('portal/logout/', PortalLogoutView.as_view(), name='portal-logout'),
     path('api/v1/', include('core.urls')),
     path('api/', include('core.urls')),
 ]
