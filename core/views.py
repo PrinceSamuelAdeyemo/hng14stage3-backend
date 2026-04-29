@@ -2,7 +2,7 @@ import csv
 import math
 import re
 
-from django.contrib.auth import login as django_login, logout as django_logout
+from django.contrib.auth import authenticate, login as django_login, logout as django_logout
 from django.conf import settings
 from django.http import HttpResponse
 from django.shortcuts import redirect, render
@@ -25,7 +25,7 @@ from .auth_utils import (
 	rotate_refresh_token,
 	user_has_role,
 )
-from .models import OAuthState, Profile, RefreshToken, ROLE_ADMIN, ROLE_ANALYST
+from .models import OAuthState, Profile, RefreshToken, ROLE_ADMIN, ROLE_ANALYST, UserProfile
 
 VALID_SORT_FIELDS = {"age", "created_at", "gender_probability"}
 VALID_ORDER = {"asc", "desc"}
@@ -378,6 +378,41 @@ class TokenRefreshView(APIView):
 			django_login(request, user)
 			response.set_cookie("insighta_refresh", refresh, httponly=True, samesite="Lax", max_age=7 * 24 * 3600)
 		return response
+
+
+class PasswordLoginView(APIView):
+	permission_classes = [AllowAny]
+	authentication_classes = []
+
+	def post(self, request):
+		username = request.data.get("username", "").strip()
+		password = request.data.get("password", "")
+		if not username or not password:
+			return error_response("Username and password are required", 400)
+		user = authenticate(request, username=username, password=password)
+		if not user:
+			return error_response("Invalid username or password", 401)
+		role = ROLE_ADMIN if user.is_staff or user.is_superuser else ROLE_ANALYST
+		profile, _ = UserProfile.objects.get_or_create(
+			user=user,
+			defaults={
+				"github_login": username,
+				"role": role,
+			},
+		)
+		if profile.role != role and user.is_staff:
+			profile.role = role
+			profile.save(update_fields=["role", "updated_at"])
+		access = build_access_token(user)
+		refresh, _ = issue_refresh_token(user, "web")
+		return Response({
+			"status": "success",
+			"access_token": access,
+			"refresh_token": refresh,
+			"token_type": "Bearer",
+			"expires_in": settings.INSIGHTA_ACCESS_TOKEN_SECONDS,
+			"role": profile.role,
+		})
 
 
 class LogoutView(APIView):
