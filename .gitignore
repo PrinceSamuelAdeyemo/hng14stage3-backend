@@ -4,3 +4,6 @@ config/pycache/
 core/pycache/
 __pycache__/
 *.pyc
+
+backendstage3-cli-client/
+backendstage3-webportal/
