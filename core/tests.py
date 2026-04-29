@@ -42,7 +42,8 @@ class StageThreeApiTests(TestCase):
 
 	def test_legacy_api_shape_is_preserved(self):
 		self.auth()
-		response = self.client.get("/api/profiles")
+		self.assertEqual(self.client.get("/api/profiles").status_code, 400)
+		response = self.client.get("/api/profiles", HTTP_X_API_VERSION="1")
 		self.assertEqual(response.status_code, 200)
 		self.assertIn("page", response.data)
 		self.assertNotIn("pagination", response.data)

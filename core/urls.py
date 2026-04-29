@@ -6,6 +6,7 @@ from .views import (
 	MeView,
 	PasswordLoginView,
 	PortalView,
+	ProfileDetailView,
 	ProfileExportView,
 	ProfileListView,
 	ProfileSearchView,
@@ -22,7 +23,10 @@ urlpatterns = [
 	path('me', MeView.as_view(), name='me'),
 	path('users/me', MeView.as_view(), name='users-me'),
 	path('profiles', ProfileListView.as_view(), name='profile-list'),
+	path('profiles/<uuid:profile_id>', ProfileDetailView.as_view(), name='profile-detail'),
 	path('profiles/search', ProfileSearchView.as_view(), name='profile-search'),
 	path('profiles/export', ProfileExportView.as_view(), name='profile-export'),
+	path('export', ProfileExportView.as_view(), name='profile-export-alias'),
+	path('profiles.csv', ProfileExportView.as_view(), name='profile-export-csv'),
 	path('portal', PortalView.as_view(), name='portal'),
 ]

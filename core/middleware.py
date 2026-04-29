@@ -20,6 +20,7 @@ class RateLimitMiddleware:
 	def __call__(self, request):
 		if request.path.startswith("/api/") or request.path.startswith("/auth/"):
 			ip = client_ip(request) or "unknown"
+			user_agent = request.META.get("HTTP_USER_AGENT", "unknown")[:80]
 			is_oauth_start = request.path in {
 				"/auth/github",
 				"/auth/github/",
@@ -35,15 +36,18 @@ class RateLimitMiddleware:
 				"/api/v1/auth/github/start/",
 			}
 			limit = 10 if is_oauth_start else 120
-			key = f"rl:{ip}:{request.path.rstrip('/')}:{int(time.time() // 60)}"
+			key = f"rl:{ip}:{user_agent}:{request.path.rstrip('/')}:{int(time.time() // 30)}"
 			count = cache.get(key, 0) + 1
-			cache.set(key, count, timeout=70)
+			cache.set(key, count, timeout=35)
 			if count > limit:
 				response = JsonResponse(
 					{"status": "error", "message": "Rate limit exceeded"},
 					status=429,
 				)
 				response["Access-Control-Allow-Origin"] = "*"
+				response["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+				response["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+				response["Cache-Control"] = "no-store"
 				return response
 		return self.get_response(request)
 
