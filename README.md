@@ -37,6 +37,8 @@ Required environment variables:
 GITHUB_CLIENT_ID=...
 GITHUB_CLIENT_SECRET=...
 GITHUB_CALLBACK_URL=http://localhost:8000/api/v1/auth/github/callback
+WEB_PORTAL_URL=https://backendstage3-webportal.vercel.app/
+INSIGHTA_API=http://localhost:8000/api/v1
 INSIGHTA_ADMIN_GITHUB_LOGINS=github_admin_login,another_admin
 INSIGHTA_ACCESS_TOKEN_SECONDS=900
 INSIGHTA_REFRESH_TOKEN_DAYS=7
@@ -122,6 +124,8 @@ http://localhost:8000/portal/
 ```
 
 The portal uses Django sessions, CSRF-protected POST forms, and an HTTP-only refresh cookie. Users can search profiles, view results, export CSV, and log out.
+
+The standalone web portal in `backendstage3-webportal/` uses `http://localhost:8000/api/v1` on localhost and `https://hng14stage3-backend.vercel.app/api/v1` when hosted at `https://backendstage3-webportal.vercel.app/`.
 
 ## Natural Language Parsing Approach
 

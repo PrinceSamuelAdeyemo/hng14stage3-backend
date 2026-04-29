@@ -291,7 +291,7 @@ class GitHubOAuthStartView(APIView):
 			code_verifier=verifier,
 			client_type=client_type,
 			redirect_uri=request.query_params.get("redirect_uri", ""),
-			next_url=request.query_params.get("next", "/portal/"),
+			next_url=request.query_params.get("next", settings.WEB_PORTAL_URL),
 		)
 		try:
 			authorize_url = github_authorize_url(state_obj, challenge)
@@ -336,7 +336,7 @@ class GitHubOAuthCallbackView(APIView):
 		refresh, _ = issue_refresh_token(user, state_obj.client_type)
 		if state_obj.client_type == "web":
 			django_login(request, user)
-			response = redirect(state_obj.next_url or "/portal/")
+			response = redirect(state_obj.next_url or settings.WEB_PORTAL_URL)
 			response.set_cookie(
 				"insighta_refresh",
 				refresh,

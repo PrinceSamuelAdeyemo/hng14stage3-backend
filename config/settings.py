@@ -80,6 +80,7 @@ MIDDLEWARE = [
 GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID', '')
 GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET', '')
 GITHUB_CALLBACK_URL = os.getenv('GITHUB_CALLBACK_URL', 'http://localhost:8000/api/v1/auth/github/callback')
+WEB_PORTAL_URL = os.getenv('WEB_PORTAL_URL', 'https://backendstage3-webportal.vercel.app/')
 INSIGHTA_ADMIN_GITHUB_LOGINS = os.getenv('INSIGHTA_ADMIN_GITHUB_LOGINS', '')
 INSIGHTA_ACCESS_TOKEN_SECONDS = int(os.getenv('INSIGHTA_ACCESS_TOKEN_SECONDS', '900'))
 INSIGHTA_REFRESH_TOKEN_DAYS = int(os.getenv('INSIGHTA_REFRESH_TOKEN_DAYS', '7'))
