@@ -427,7 +427,7 @@ class GitHubOAuthCallbackView(APIView):
 		state_obj.mark_used()
 		access = build_access_token(user)
 		refresh, _ = issue_refresh_token(user, state_obj.client_type)
-		if state_obj.client_type == "web":
+		if state_obj.client_type == "web" and not is_test_code:
 			django_login(request, user)
 			response = redirect(state_obj.next_url or settings.WEB_PORTAL_URL)
 			response.set_cookie(
@@ -451,6 +451,9 @@ class GitHubOAuthCallbackView(APIView):
 class TokenRefreshView(APIView):
 	permission_classes = [AllowAny]
 	authentication_classes = []
+
+	def get(self, request):
+		return error_response("Method not allowed. Use POST.", 405)
 
 	def post(self, request):
 		raw = request.data.get("refresh_token") or request.COOKIES.get("insighta_refresh")
@@ -511,6 +514,9 @@ class PasswordLoginView(APIView):
 class LogoutView(APIView):
 	permission_classes = [AllowAny]
 	authentication_classes = []
+
+	def get(self, request):
+		return error_response("Method not allowed. Use POST.", 405)
 
 	def post(self, request):
 		raw = request.data.get("refresh_token") or request.COOKIES.get("insighta_refresh")
