@@ -10,6 +10,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from dotenv import load_dotenv
+load_dotenv()
 
 CREDENTIAL_PATH = Path.home() / ".insighta" / "credentials.json"
 
