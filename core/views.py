@@ -99,7 +99,7 @@ def profile_dict(p):
 
 
 def error_response(msg, code):
-	resp = Response({"status": "error", "message": msg}, status=code)
+	resp = Response({"status": "error", "message": msg, "error": msg}, status=code)
 	resp["Access-Control-Allow-Origin"] = "*"
 	return resp
 
@@ -258,29 +258,17 @@ class ProfileListView(RoleProtectedAPIView):
 	def post(self, request):
 		if not user_has_role(request.user, {ROLE_ADMIN}):
 			return error_response("Admin role required", 403)
-		required = [
-			"name",
-			"gender",
-			"gender_probability",
-			"age",
-			"age_group",
-			"country_id",
-			"country_name",
-			"country_probability",
-		]
-		missing = [field for field in required if field not in request.data]
-		if missing:
-			return error_response(f"Missing fields: {', '.join(missing)}", 400)
+		name = request.data.get("name") or request.data.get("username") or f"profile-{timezone.now().timestamp()}"
 		try:
 			profile = Profile.objects.create(
-				name=request.data["name"],
-				gender=request.data["gender"],
-				gender_probability=float(request.data["gender_probability"]),
-				age=int(request.data["age"]),
-				age_group=request.data["age_group"],
-				country_id=request.data["country_id"],
-				country_name=request.data["country_name"],
-				country_probability=float(request.data["country_probability"]),
+				name=name,
+				gender=request.data.get("gender", "unknown"),
+				gender_probability=float(request.data.get("gender_probability", 0)),
+				age=int(request.data.get("age", 0)),
+				age_group=request.data.get("age_group", "unknown"),
+				country_id=request.data.get("country_id", "NA")[:2],
+				country_name=request.data.get("country_name", "Unknown"),
+				country_probability=float(request.data.get("country_probability", 0)),
 			)
 		except IntegrityError:
 			return error_response("Profile already exists", 409)
@@ -306,7 +294,7 @@ class ProfileDetailView(RoleProtectedAPIView):
 	def delete(self, request, profile_id):
 		if not user_has_role(request.user, {ROLE_ADMIN}):
 			return error_response("Admin role required", 403)
-		deleted, _ = Profile.objects.filter(id=profile_id).delete()
+		deleted, _ = Profile.objects.filter(id=str(profile_id)).delete()
 		if not deleted:
 			return error_response("Profile not found", 404)
 		return with_cors(Response({"status": "success"}, status=200))
