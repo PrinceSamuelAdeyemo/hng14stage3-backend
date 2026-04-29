@@ -103,6 +103,13 @@ def error_response(msg, code):
 	return resp
 
 
+def with_cors(response):
+	response["Access-Control-Allow-Origin"] = "*"
+	response["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+	response["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+	return response
+
+
 def get_page_params(params):
 	try:
 		page = int(params.get("page", 1))
@@ -273,7 +280,7 @@ class ProfileExportView(RoleProtectedAPIView):
 		for profile in queryset.iterator():
 			item = profile_dict(profile)
 			writer.writerow([item[key] for key in item])
-		return response
+		return with_cors(response)
 
 
 class GitHubOAuthStartView(APIView):
@@ -298,14 +305,14 @@ class GitHubOAuthStartView(APIView):
 		except Exception:
 			return error_response("GitHub OAuth is not configured", 500)
 		if client_type == "web":
-			return redirect(authorize_url)
-		return Response({
+			return with_cors(redirect(authorize_url))
+		return with_cors(Response({
 			"status": "success",
 			"authorize_url": authorize_url,
 			"state": state_obj.state,
 			"code_verifier": verifier,
 			"expires_in": 600,
-		})
+		}))
 
 
 class GitHubOAuthCallbackView(APIView):
@@ -323,11 +330,14 @@ class GitHubOAuthCallbackView(APIView):
 			return error_response("Invalid OAuth state", 400)
 		if state_obj.used_at or state_obj.is_expired():
 			return error_response("Expired OAuth state", 400)
+		code_verifier = request.query_params.get("code_verifier")
+		if state_obj.client_type == "cli" and code_verifier != state_obj.code_verifier:
+			return error_response("Invalid PKCE code verifier", 400)
 		try:
 			user, profile = exchange_github_code(
 				code,
 				state_obj,
-				request.query_params.get("code_verifier"),
+				code_verifier,
 			)
 		except exceptions.AuthenticationFailed as exc:
 			return error_response(str(exc.detail), 401)
@@ -344,15 +354,15 @@ class GitHubOAuthCallbackView(APIView):
 				samesite="Lax",
 				max_age=7 * 24 * 3600,
 			)
-			return response
-		return Response({
+			return with_cors(response)
+		return with_cors(Response({
 			"status": "success",
 			"access_token": access,
 			"refresh_token": refresh,
 			"token_type": "Bearer",
 			"expires_in": settings.INSIGHTA_ACCESS_TOKEN_SECONDS,
 			"role": profile.role,
-		})
+		}))
 
 
 class TokenRefreshView(APIView):
@@ -377,7 +387,7 @@ class TokenRefreshView(APIView):
 		if request.COOKIES.get("insighta_refresh"):
 			django_login(request, user)
 			response.set_cookie("insighta_refresh", refresh, httponly=True, samesite="Lax", max_age=7 * 24 * 3600)
-		return response
+		return with_cors(response)
 
 
 class PasswordLoginView(APIView):
@@ -405,14 +415,14 @@ class PasswordLoginView(APIView):
 			profile.save(update_fields=["role", "updated_at"])
 		access = build_access_token(user)
 		refresh, _ = issue_refresh_token(user, "web")
-		return Response({
+		return with_cors(Response({
 			"status": "success",
 			"access_token": access,
 			"refresh_token": refresh,
 			"token_type": "Bearer",
 			"expires_in": settings.INSIGHTA_ACCESS_TOKEN_SECONDS,
 			"role": profile.role,
-		})
+		}))
 
 
 class LogoutView(APIView):
@@ -426,7 +436,7 @@ class LogoutView(APIView):
 		django_logout(request)
 		response = Response({"status": "success"})
 		response.delete_cookie("insighta_refresh")
-		return response
+		return with_cors(response)
 
 
 class MeView(RoleProtectedAPIView):
