@@ -61,7 +61,7 @@ class StageThreeApiTests(TestCase):
 		self.assertNotEqual(refresh, response.data["refresh_token"])
 
 	def test_github_start_alias_redirects_with_pkce_and_cors(self):
-		response = self.client.get("/api/v1/auth/github")
+		response = self.client.get("/auth/github")
 		self.assertEqual(response.status_code, 302)
 		self.assertIn("https://github.com/login/oauth/authorize", response["Location"])
 		self.assertIn("code_challenge=", response["Location"])
@@ -69,16 +69,16 @@ class StageThreeApiTests(TestCase):
 		self.assertEqual(response["Access-Control-Allow-Origin"], "*")
 
 	def test_github_cli_callback_validates_pkce_and_returns_tokens(self):
-		start = self.client.get("/api/v1/auth/github", {"client": "cli"})
+		start = self.client.get("/auth/github", {"client": "cli"})
 		state = start.data["state"]
 		verifier = start.data["code_verifier"]
-		bad = self.client.get("/api/v1/auth/github/callback", {
+		bad = self.client.get("/auth/github/callback", {
 			"code": "valid-code",
 			"state": state,
 			"code_verifier": "wrong",
 		})
 		self.assertEqual(bad.status_code, 400)
-		response = self.client.get("/api/v1/auth/github/callback", {
+		response = self.client.get("/auth/github/callback", {
 			"code": "analyst-code",
 			"state": state,
 			"code_verifier": verifier,
@@ -89,8 +89,8 @@ class StageThreeApiTests(TestCase):
 		self.assertEqual(response.data["role"], ROLE_ANALYST)
 
 	def test_github_cli_callback_can_issue_admin_token(self):
-		start = self.client.get("/api/v1/auth/github", {"client": "cli"})
-		response = self.client.get("/api/v1/auth/github/callback", {
+		start = self.client.get("/auth/github", {"client": "cli"})
+		response = self.client.get("/auth/github/callback", {
 			"code": "admin-code",
 			"state": start.data["state"],
 			"code_verifier": start.data["code_verifier"],
@@ -98,14 +98,14 @@ class StageThreeApiTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response.data["role"], ROLE_ADMIN)
 		self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access_token']}")
-		me = self.client.get("/api/v1/users/me")
+		me = self.client.get("/api/users/me")
 		self.assertEqual(me.status_code, 200)
 		self.assertEqual(me.data["user"]["role"], ROLE_ADMIN)
 
 	def test_github_callback_rejects_missing_and_invalid_values(self):
-		self.assertEqual(self.client.get("/api/v1/auth/github/callback").status_code, 400)
+		self.assertEqual(self.client.get("/auth/github/callback").status_code, 400)
 		state = OAuthState.objects.create(code_verifier="verifier", client_type="cli")
-		response = self.client.get("/api/v1/auth/github/callback", {
+		response = self.client.get("/auth/github/callback", {
 			"code": "invalid-code",
 			"state": state.state,
 			"code_verifier": "verifier",
@@ -114,6 +114,6 @@ class StageThreeApiTests(TestCase):
 
 	def test_auth_github_rate_limit_is_ten_requests_per_minute(self):
 		for _ in range(10):
-			self.assertEqual(self.client.get("/api/v1/auth/github").status_code, 302)
-		response = self.client.get("/api/v1/auth/github")
+			self.assertEqual(self.client.get("/auth/github").status_code, 302)
+		response = self.client.get("/auth/github")
 		self.assertEqual(response.status_code, 429)

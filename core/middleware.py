@@ -18,9 +18,13 @@ class RateLimitMiddleware:
 		self.get_response = get_response
 
 	def __call__(self, request):
-		if request.path.startswith("/api/"):
+		if request.path.startswith("/api/") or request.path.startswith("/auth/"):
 			ip = client_ip(request) or "unknown"
 			is_oauth_start = request.path in {
+				"/auth/github",
+				"/auth/github/",
+				"/auth/github/start",
+				"/auth/github/start/",
 				"/api/auth/github",
 				"/api/auth/github/",
 				"/api/v1/auth/github",

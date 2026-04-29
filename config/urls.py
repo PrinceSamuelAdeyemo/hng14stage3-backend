@@ -22,6 +22,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('portal/', PortalView.as_view(), name='portal-root'),
     path('portal/logout/', PortalLogoutView.as_view(), name='portal-logout'),
+    path('', include('core.urls')),
     path('api/v1/', include('core.urls')),
     path('api/', include('core.urls')),
 ]
