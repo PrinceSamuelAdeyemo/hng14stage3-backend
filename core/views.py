@@ -1,6 +1,7 @@
 import csv
 import math
 import re
+from urllib.parse import urlencode, urlparse
 
 from django.db import IntegrityError
 from django.contrib.auth import authenticate, login as django_login, logout as django_logout
@@ -30,6 +31,7 @@ from .models import OAuthState, Profile, RefreshToken, ROLE_ADMIN, ROLE_ANALYST,
 
 VALID_SORT_FIELDS = {"age", "created_at", "gender_probability"}
 VALID_ORDER = {"asc", "desc"}
+LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 
 def is_v1(request):
@@ -109,6 +111,16 @@ def with_cors(response):
 	response["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
 	response["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
 	return response
+
+
+def is_loopback_redirect_uri(uri):
+	parsed = urlparse(uri)
+	return parsed.scheme == "http" and parsed.hostname in LOOPBACK_HOSTS
+
+
+def append_query_params(url, params):
+	separator = "&" if "?" in url else "?"
+	return url + separator + urlencode({key: value for key, value in params.items() if value})
 
 
 def require_api_version(request):
@@ -392,7 +404,8 @@ class GitHubOAuthCallbackView(APIView):
 	def get(self, request):
 		code = request.query_params.get("code")
 		state = request.query_params.get("state")
-		if not code or not state:
+		oauth_error = request.query_params.get("error")
+		if (not code and not oauth_error) or not state:
 			return error_response("Missing OAuth callback parameters", 400)
 		try:
 			state_obj = OAuthState.objects.get(state=state)
@@ -400,6 +413,15 @@ class GitHubOAuthCallbackView(APIView):
 			return error_response("Invalid OAuth state", 400)
 		if state_obj.used_at or state_obj.is_expired():
 			return error_response("Expired OAuth state", 400)
+		if state_obj.client_type == "cli" and not request.query_params.get("code_verifier"):
+			if not is_loopback_redirect_uri(state_obj.redirect_uri):
+				return error_response("Invalid CLI redirect URI", 400)
+			return with_cors(redirect(append_query_params(state_obj.redirect_uri, {
+				"code": code,
+				"state": state,
+				"error": oauth_error,
+				"error_description": request.query_params.get("error_description"),
+			})))
 		code_verifier = request.query_params.get("code_verifier")
 		is_test_code = code in {"test_code", "admin_test_code", "analyst_test_code"}
 		if state_obj.client_type == "cli" and not is_test_code and code_verifier != state_obj.code_verifier:

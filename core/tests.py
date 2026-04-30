@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from .auth_utils import build_access_token, issue_refresh_token
@@ -88,6 +88,25 @@ class StageThreeApiTests(TestCase):
 		self.assertIn("access_token", response.data)
 		self.assertIn("refresh_token", response.data)
 		self.assertEqual(response.data["role"], ROLE_ANALYST)
+
+	@override_settings(GITHUB_CALLBACK_URL="https://backend.example.com/api/v1/auth/github/callback")
+	def test_github_cli_flow_uses_backend_callback_then_forwards_to_loopback(self):
+		loopback = "http://127.0.0.1:54321/api/v1/auth/github/callback"
+		start = self.client.get("/auth/github", {
+			"client": "cli",
+			"redirect_uri": loopback,
+		})
+		self.assertEqual(start.status_code, 200)
+		self.assertIn("redirect_uri=https%3A%2F%2Fbackend.example.com%2Fapi%2Fv1%2Fauth%2Fgithub%2Fcallback", start.data["authorize_url"])
+		self.assertNotIn("redirect_uri=http%3A%2F%2F127.0.0.1", start.data["authorize_url"])
+		response = self.client.get("/auth/github/callback", {
+			"code": "github-code",
+			"state": start.data["state"],
+		})
+		self.assertEqual(response.status_code, 302)
+		self.assertIn(loopback, response["Location"])
+		self.assertIn("code=github-code", response["Location"])
+		self.assertIn(f"state={start.data['state']}", response["Location"])
 
 	def test_github_cli_callback_can_issue_admin_token(self):
 		start = self.client.get("/auth/github", {"client": "cli"})

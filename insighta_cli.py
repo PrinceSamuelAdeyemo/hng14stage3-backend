@@ -69,12 +69,14 @@ def command_login(args):
 			query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
 			callback_result["code"] = query.get("code", [""])[0]
 			callback_result["state"] = query.get("state", [""])[0]
+			callback_result["error"] = query.get("error", [""])[0]
+			callback_result["error_description"] = query.get("error_description", [""])[0]
 			self.send_response(200)
 			self.end_headers()
 			self.wfile.write(b"Insighta login complete. You can close this window.")
 
 	server = HTTPServer(("127.0.0.1", 0), CallbackHandler)
-	redirect_uri = f"http://127.0.0.1:{server.server_port}/callback"
+	redirect_uri = f"http://127.0.0.1:{server.server_port}/api/v1/auth/github/callback"
 	start_url = f"{api_base(args)}/auth/github/start?" + urllib.parse.urlencode({
 		"client": "cli",
 		"redirect_uri": redirect_uri,
@@ -86,8 +88,13 @@ def command_login(args):
 	webbrowser.open(start["authorize_url"])
 	thread.join(timeout=180)
 	server.server_close()
+	if callback_result.get("error"):
+		description = callback_result.get("error_description") or callback_result["error"]
+		raise SystemExit(f"GitHub OAuth failed: {description}")
 	if not callback_result.get("code"):
 		raise SystemExit("Login timed out before GitHub returned a code.")
+	if callback_result.get("state") != start.get("state"):
+		raise SystemExit("Login failed because the OAuth state did not match.")
 	callback_url = f"{api_base(args)}/auth/github/callback?" + urllib.parse.urlencode({
 		"code": callback_result["code"],
 		"state": callback_result["state"],

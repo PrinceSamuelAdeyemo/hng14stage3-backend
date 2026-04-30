@@ -176,7 +176,7 @@ def pkce_pair():
 def github_authorize_url(state_obj, code_challenge):
 	params = {
 		"client_id": settings.GITHUB_CLIENT_ID,
-		"redirect_uri": state_obj.redirect_uri or settings.GITHUB_CALLBACK_URL,
+		"redirect_uri": settings.GITHUB_CALLBACK_URL,
 		"scope": "read:user user:email",
 		"state": state_obj.state,
 		"code_challenge": code_challenge,
@@ -194,7 +194,7 @@ def exchange_github_code(code, state_obj, code_verifier=None):
 		"client_id": settings.GITHUB_CLIENT_ID,
 		"client_secret": settings.GITHUB_CLIENT_SECRET,
 		"code": code,
-		"redirect_uri": state_obj.redirect_uri or settings.GITHUB_CALLBACK_URL,
+		"redirect_uri": settings.GITHUB_CALLBACK_URL,
 		"code_verifier": verifier,
 	}).encode("utf-8")
 	request = Request(

@@ -26,10 +26,12 @@ Browser:
 CLI:
 
 1. `insighta login --api http://localhost:8000/api/v1`
-2. The CLI starts `/api/v1/auth/github/start?client=cli&redirect_uri=http://127.0.0.1:<port>/callback`.
+2. The CLI starts `/api/v1/auth/github/start?client=cli&redirect_uri=http://127.0.0.1:<port>/api/v1/auth/github/callback`.
 3. The CLI opens the GitHub authorization URL and listens locally for the callback.
-4. The CLI sends the returned code, state, and PKCE verifier to `/api/v1/auth/github/callback`.
-5. The backend returns access and refresh tokens, and the CLI stores them at `~/.insighta/credentials.json`.
+4. GitHub redirects to the backend callback URL configured in `GITHUB_CALLBACK_URL`.
+5. The backend forwards the code and state to the CLI loopback redirect URI.
+6. The CLI sends the returned code, state, and PKCE verifier to `/api/v1/auth/github/callback`.
+7. The backend returns access and refresh tokens, and the CLI stores them at `~/.insighta/credentials.json`.
 
 Required environment variables:
 
