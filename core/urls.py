@@ -15,8 +15,11 @@ from .views import (
 
 urlpatterns = [
 	path('auth/github', GitHubOAuthStartView.as_view(), name='github-oauth'),
+	path('auth/github/', GitHubOAuthStartView.as_view(), name='github-oauth-slash'),
 	path('auth/github/start', GitHubOAuthStartView.as_view(), name='github-oauth-start'),
+	path('auth/github/start/', GitHubOAuthStartView.as_view(), name='github-oauth-start-slash'),
 	path('auth/github/callback', GitHubOAuthCallbackView.as_view(), name='github-oauth-callback'),
+	path('auth/github/callback/', GitHubOAuthCallbackView.as_view(), name='github-oauth-callback-slash'),
 	path('auth/login', PasswordLoginView.as_view(), name='password-login'),
 	path('auth/refresh', TokenRefreshView.as_view(), name='token-refresh'),
 	path('auth/logout', LogoutView.as_view(), name='logout'),

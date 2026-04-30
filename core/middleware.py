@@ -1,3 +1,4 @@
+import hashlib
 import time
 
 from django.core.cache import cache
@@ -36,7 +37,9 @@ class RateLimitMiddleware:
 				"/api/v1/auth/github/start/",
 			}
 			limit = 10 if is_oauth_start else 120
-			key = f"rl:{ip}:{user_agent}:{request.path.rstrip('/')}:{int(time.time() // 30)}"
+			identity = hashlib.sha256(f"{ip}:{user_agent}".encode("utf-8")).hexdigest()[:24]
+			path_hash = hashlib.sha256(request.path.rstrip("/").encode("utf-8")).hexdigest()[:16]
+			key = f"rl:{identity}:{path_hash}:{int(time.time() // 30)}"
 			count = cache.get(key, 0) + 1
 			cache.set(key, count, timeout=35)
 			if count > limit:

@@ -32,6 +32,11 @@ class StageThreeApiTests(TestCase):
 		response = self.client.get("/api/v1/profiles")
 		self.assertEqual(response.status_code, 403)
 
+	def test_base_url_serves_portal_login(self):
+		response = self.client.get("/")
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Continue with GitHub")
+
 	def test_v1_profiles_use_updated_pagination_shape(self):
 		self.auth()
 		response = self.client.get("/api/v1/profiles")
@@ -69,6 +74,21 @@ class StageThreeApiTests(TestCase):
 		self.assertIn("state=", response["Location"])
 		self.assertEqual(response["Access-Control-Allow-Origin"], "*")
 
+	def test_github_start_accepts_trailing_slash_under_v1(self):
+		response = self.client.get("/api/v1/auth/github/", {"client": "web"})
+		self.assertEqual(response.status_code, 302)
+		self.assertIn("https://github.com/login/oauth/authorize", response["Location"])
+
+	def test_github_web_start_accepts_redirect_uri_as_next_url(self):
+		portal_url = "https://backendstage3-webportal.vercel.app/"
+		response = self.client.get("/api/v1/auth/github/", {
+			"client": "web",
+			"redirect_uri": portal_url,
+		})
+		self.assertEqual(response.status_code, 302)
+		state = response["Location"].split("state=")[1].split("&")[0]
+		self.assertEqual(OAuthState.objects.get(state=state).next_url, portal_url)
+
 	def test_github_cli_callback_validates_pkce_and_returns_tokens(self):
 		start = self.client.get("/auth/github", {"client": "cli"})
 		state = start.data["state"]
@@ -105,6 +125,26 @@ class StageThreeApiTests(TestCase):
 		})
 		self.assertEqual(response.status_code, 302)
 		self.assertIn(loopback, response["Location"])
+		self.assertIn("code=github-code", response["Location"])
+		self.assertIn(f"state={start.data['state']}", response["Location"])
+
+	@override_settings(
+		GITHUB_CALLBACK_URL="https://backend.example.com/api/v1/auth/github/callback",
+		WEB_PORTAL_URL="https://backendstage3-webportal.vercel.app/",
+	)
+	def test_github_cli_flow_can_forward_to_configured_web_portal(self):
+		portal_url = "https://backendstage3-webportal.vercel.app/"
+		start = self.client.get("/auth/github", {
+			"client": "cli",
+			"redirect_uri": portal_url,
+		})
+		self.assertEqual(start.status_code, 200)
+		response = self.client.get("/auth/github/callback", {
+			"code": "github-code",
+			"state": start.data["state"],
+		})
+		self.assertEqual(response.status_code, 302)
+		self.assertIn(portal_url, response["Location"])
 		self.assertIn("code=github-code", response["Location"])
 		self.assertIn(f"state={start.data['state']}", response["Location"])
 

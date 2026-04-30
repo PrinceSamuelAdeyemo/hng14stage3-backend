@@ -20,6 +20,7 @@ from core.views import PortalLogoutView, PortalView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('', PortalView.as_view(), name='home'),
     path('portal/', PortalView.as_view(), name='portal-root'),
     path('portal/logout/', PortalLogoutView.as_view(), name='portal-logout'),
     path('', include('core.urls')),

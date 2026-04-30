@@ -118,6 +118,15 @@ def is_loopback_redirect_uri(uri):
 	return parsed.scheme == "http" and parsed.hostname in LOOPBACK_HOSTS
 
 
+def is_allowed_oauth_return_uri(uri):
+	if is_loopback_redirect_uri(uri):
+		return True
+	allowed = {
+		settings.WEB_PORTAL_URL.rstrip("/"),
+	}
+	return uri.rstrip("/") in allowed
+
+
 def append_query_params(url, params):
 	separator = "&" if "?" in url else "?"
 	return url + separator + urlencode({key: value for key, value in params.items() if value})
@@ -380,7 +389,11 @@ class GitHubOAuthStartView(APIView):
 			code_verifier=verifier,
 			client_type=client_type,
 			redirect_uri=request.query_params.get("redirect_uri", ""),
-			next_url=request.query_params.get("next", settings.WEB_PORTAL_URL),
+			next_url=(
+				request.query_params.get("next")
+				or (request.query_params.get("redirect_uri") if client_type == "web" else "")
+				or settings.WEB_PORTAL_URL
+			),
 		)
 		try:
 			authorize_url = github_authorize_url(state_obj, challenge)
@@ -414,7 +427,7 @@ class GitHubOAuthCallbackView(APIView):
 		if state_obj.used_at or state_obj.is_expired():
 			return error_response("Expired OAuth state", 400)
 		if state_obj.client_type == "cli" and not request.query_params.get("code_verifier"):
-			if not is_loopback_redirect_uri(state_obj.redirect_uri):
+			if not is_allowed_oauth_return_uri(state_obj.redirect_uri):
 				return error_response("Invalid CLI redirect URI", 400)
 			return with_cors(redirect(append_query_params(state_obj.redirect_uri, {
 				"code": code,
