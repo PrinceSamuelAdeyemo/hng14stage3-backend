@@ -7,3 +7,12 @@ __pycache__/
 
 backendstage3-cli-client/
 backendstage3-webportal/
+
+CSV_TESTING_GUIDE.md
+IMPLEMENTATION_SUMMARY.md
+QUICK_START.md
+generate_test_csv.py
+test_csv_upload.py
+EXECUTION_CHECKLIST.md
+VISUAL_OVERVIEW.md
+README_CSV_TESTING.md

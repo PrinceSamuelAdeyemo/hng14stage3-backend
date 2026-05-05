@@ -2,10 +2,40 @@
 
 import csv
 import io
-from typing import Iterator, Dict, List, Tuple
+import time
+from typing import Iterator, Dict, List, Tuple, Optional
 from django.db import transaction
 from .models import Profile
 from .cache_manager import CacheManager
+
+
+class CSVHeaderValidator:
+    """Validates CSV headers before processing."""
+    
+    REQUIRED_HEADERS = {'name', 'gender', 'age', 'age_group', 'country_id', 'country_name'}
+    OPTIONAL_HEADERS = {'gender_probability', 'country_probability'}
+    
+    @staticmethod
+    def validate_headers(headers: List[str]) -> Tuple[bool, Optional[str]]:
+        """
+        Validate that CSV has required headers.
+        
+        Returns:
+            (is_valid, error_message or None)
+        """
+        if not headers:
+            return False, "CSV file is empty or has no headers"
+        
+        # Normalize headers (strip whitespace, lowercase)
+        normalized_headers = set(h.strip().lower() for h in headers if h)
+        
+        # Check required fields
+        missing = CSVHeaderValidator.REQUIRED_HEADERS - normalized_headers
+        if missing:
+            return False, f"Missing required columns: {', '.join(sorted(missing))}"
+        
+        return True, None
+
 
 class CSVValidator:
     """Validates individual CSV rows."""
@@ -99,6 +129,14 @@ class CSVChunkProcessor:
         csv_file = io.StringIO(content)
         reader = csv.DictReader(csv_file)
         
+        # Validate headers EARLY - before processing any rows
+        if reader.fieldnames:
+            is_valid, error_msg = CSVHeaderValidator.validate_headers(list(reader.fieldnames))
+            if not is_valid:
+                raise ValueError(f"Invalid CSV headers: {error_msg}")
+        else:
+            raise ValueError("CSV file has no headers")
+        
         for row in reader:
             # Skip empty rows
             if any(row.values()):
@@ -115,6 +153,8 @@ class CSVChunkProcessor:
                 'total_rows': int,
                 'inserted': int,
                 'skipped': int,
+                'duration_seconds': float,
+                'rows_per_second': float,
                 'reasons': {
                     'duplicate_name': int,
                     'invalid_age': int,
@@ -123,6 +163,8 @@ class CSVChunkProcessor:
                 }
             }
         """
+        start_time = time.time()
+        
         stats = {
             'total_rows': 0,
             'inserted': 0,
@@ -136,6 +178,7 @@ class CSVChunkProcessor:
                 'invalid_country_id': 0,
                 'invalid_probability': 0,
                 'malformed_row': 0,
+                'invalid_headers': 0,
             }
         }
         
@@ -143,7 +186,10 @@ class CSVChunkProcessor:
         existing_names = set(Profile.objects.values_list('name', flat=True))
         
         try:
-            for row_num, row in enumerate(CSVChunkProcessor.stream_csv_rows(file_stream), 1):
+            # Validate headers early
+            row_generator = CSVChunkProcessor.stream_csv_rows(file_stream)
+            
+            for row_num, row in enumerate(row_generator, 1):
                 stats['total_rows'] += 1
                 
                 try:
@@ -193,13 +239,24 @@ class CSVChunkProcessor:
                 inserted = CSVChunkProcessor._insert_chunk(chunk)
                 stats['inserted'] += inserted
         
+        except ValueError as e:
+            # Header validation failed
+            stats['status'] = 'header_error'
+            stats['error'] = str(e)
+            stats['duration_seconds'] = time.time() - start_time
+            return stats
+        
         except Exception as e:
             # Partial failure - return what we have
             stats['status'] = 'partial_failure'
             stats['error'] = str(e)
+            stats['duration_seconds'] = time.time() - start_time
             return stats
         
         stats['status'] = 'success'
+        duration = time.time() - start_time
+        stats['duration_seconds'] = round(duration, 2)
+        stats['rows_per_second'] = round(stats['total_rows'] / duration, 2) if duration > 0 else 0
         
         # Invalidate query cache after data changes
         CacheManager.invalidate_profile_queries()

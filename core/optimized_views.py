@@ -258,12 +258,22 @@ class CSVUploadView(RoleProtectedAPIView):
             # Process CSV with streaming
             result = CSVChunkProcessor.process_csv_file(file_obj)
             
+            # Handle header errors with detailed message
+            if result.get('status') == 'header_error':
+                return error_response(
+                    f"CSV Format Error: {result.get('error', 'Invalid headers')}",
+                    400
+                )
+            
             return with_cors(Response({
                 "status": result.get('status', 'success'),
                 "total_rows": result['total_rows'],
                 "inserted": result['inserted'],
                 "skipped": result['skipped'],
+                "duration_seconds": result.get('duration_seconds', 0),
+                "rows_per_second": result.get('rows_per_second', 0),
                 "reasons": result['reasons'],
+                "error": result.get('error', None),
             }, status=201))
         
         except Exception as e:
