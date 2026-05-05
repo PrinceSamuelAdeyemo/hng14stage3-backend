@@ -4,7 +4,6 @@ import math
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.views import APIView
 from django.db.models import Q
 from .models import Profile, ROLE_ADMIN, ROLE_ANALYST
 from .auth_utils import user_has_role
@@ -19,14 +18,14 @@ from .views import (
 )
 
 
-class OptimizedProfileListView(APIView):
+class OptimizedProfileListView(RoleProtectedAPIView):
     """
     Enhanced ProfileListView with:
     - Query result caching
     - Query normalization
     - Optimized database queries
     """
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         """Get profiles with caching."""
