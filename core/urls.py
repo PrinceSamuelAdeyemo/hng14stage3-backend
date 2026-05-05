@@ -13,6 +13,13 @@ from .views import (
 	TokenRefreshView,
 )
 
+from django.urls import path
+from .optimized_views import (
+    OptimizedProfileListView,
+    OptimizedProfileSearchView,
+    CSVUploadView,
+)
+
 urlpatterns = [
 	path('auth/github', GitHubOAuthStartView.as_view(), name='github-oauth'),
 	path('auth/github/', GitHubOAuthStartView.as_view(), name='github-oauth-slash'),
@@ -40,4 +47,12 @@ urlpatterns = [
 	path('profiles/<str:profile_id>', ProfileDetailView.as_view(), name='profile-detail-string'),
 	path('profile/<str:profile_id>', ProfileDetailView.as_view(), name='profile-detail-singular'),
 	path('portal', PortalView.as_view(), name='portal'),
+
+
+	# Optimized endpoints (replace old ones or use alongside)
+    path('api/v1/profiles/optimized', OptimizedProfileListView.as_view(), name='optimized-profiles-list'),
+    path('api/v1/profiles/search/optimized', OptimizedProfileSearchView.as_view(), name='optimized-profile-search'),
+    
+    # CSV upload endpoint (new)
+    path('api/v1/profiles/csv/upload', CSVUploadView.as_view(), name='csv-upload'),
 ]
